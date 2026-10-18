@@ -1,25 +1,28 @@
 import { create } from 'zustand';
 import { pitchToMidi } from '../music/pitch.ts';
-import { BASIC_SEVEN } from '../music/interval.ts';
+import { ALL_SIMPLE_INTERVALS, BASIC_SEVEN } from '../music/interval.ts';
 import type { IntervalExercise } from './generator.ts';
 import { generateExercises } from './generator.ts';
+import { appendStoredAttempt, exportStoredDataToFile, loadStoredData } from './storage.ts';
+import { intervalWeights, pickWeightedInterval } from './weighting.ts';
+import type { SessionConfig } from './settings.ts';
+import { loadSettings, saveSettings } from './settings.ts';
+
+export type { SessionConfig } from './settings.ts';
 
 export type SessionStatus =
   | 'idle'
   | 'prompt'
   | 'feedback_correct'
   | 'feedback_wrong'
-  | 'complete';
+  | 'complete'
+  | 'stats'
+  | 'settings';
 
 export type Attempt = {
-  exerciseId: string;
   correct: boolean;
   playedMidi: [number, number];
   timestamp: number;
-};
-
-export type SessionConfig = {
-  sessionLength: number;
 };
 
 type SessionState = {
@@ -34,13 +37,15 @@ type SessionState = {
   recordNoteDown: (midi: number) => void;
   advance: () => void;
   reset: () => void;
+  exportData: () => void;
+  viewStats: () => void;
+  viewSettings: () => void;
+  updateConfig: (patch: Partial<SessionConfig>) => void;
 };
-
-const DEFAULT_CONFIG: SessionConfig = { sessionLength: 15 };
 
 export const useSessionStore = create<SessionState>()((set, get) => ({
   status: 'idle',
-  config: DEFAULT_CONFIG,
+  config: loadSettings(),
   exercises: [],
   currentIndex: 0,
   attempts: [],
@@ -48,9 +53,14 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   startSession: () => {
     const { config } = get();
+    const intervals =
+      config.intervalSet === 'all' ? ALL_SIMPLE_INTERVALS : BASIC_SEVEN;
+    const history = loadStoredData().attempts;
+    const weights = intervalWeights(intervals, history);
     const exercises = generateExercises(config.sessionLength, {
-      intervals: BASIC_SEVEN,
-      direction: 'up',
+      intervals,
+      direction: config.direction,
+      pickInterval: (xs) => pickWeightedInterval(xs, weights),
     });
     set({
       status: 'prompt',
@@ -77,13 +87,22 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     const [playedBase, playedTarget] = nextInput;
     const correct = playedBase === expectedBase && playedTarget === expectedTarget;
 
+    const timestamp = Date.now();
     const attempt: Attempt = {
-      exerciseId: current.id,
       correct,
       playedMidi: [playedBase, playedTarget],
-      timestamp: Date.now(),
+      timestamp,
     };
     const nextAttempts = [...attempts, attempt];
+
+    appendStoredAttempt({
+      base: current.base,
+      interval: current.interval,
+      direction: current.direction,
+      playedMidi: [playedBase, playedTarget],
+      correct,
+      timestamp,
+    });
 
     set({
       status: correct ? 'feedback_correct' : 'feedback_wrong',
@@ -115,6 +134,24 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       attempts: [],
       pendingInput: [],
     });
+  },
+
+  exportData: () => {
+    exportStoredDataToFile();
+  },
+
+  viewStats: () => {
+    set({ status: 'stats' });
+  },
+
+  viewSettings: () => {
+    set({ status: 'settings' });
+  },
+
+  updateConfig: (patch) => {
+    const next = { ...get().config, ...patch };
+    saveSettings(next);
+    set({ config: next });
   },
 }));
 

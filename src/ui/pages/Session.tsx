@@ -75,7 +75,7 @@ export function Session() {
 
       <div className="text-2xl font-medium">
         {intervalDisplayName(current.interval)}
-        <span className="text-neutral-500 ml-2">↑</span>
+        <span className="text-neutral-500 ml-2">{current.direction === 'down' ? '↓' : '↑'}</span>
       </div>
 
       <div className="flex flex-col items-center gap-1">

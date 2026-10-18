@@ -4,6 +4,8 @@ import { MidiStatus } from './ui/MidiStatus.tsx';
 import { Home } from './ui/pages/Home.tsx';
 import { Session } from './ui/pages/Session.tsx';
 import { Complete } from './ui/pages/Complete.tsx';
+import { Stats } from './ui/pages/Stats.tsx';
+import { Settings } from './ui/pages/Settings.tsx';
 import { useSessionStore } from './session/store.ts';
 
 export default function App() {
@@ -23,6 +25,8 @@ export default function App() {
           sessionStatus === 'feedback_correct' ||
           sessionStatus === 'feedback_wrong') && <Session />}
         {sessionStatus === 'complete' && <Complete />}
+        {sessionStatus === 'stats' && <Stats />}
+        {sessionStatus === 'settings' && <Settings />}
       </main>
 
       <footer className="p-4 border-t border-neutral-800">

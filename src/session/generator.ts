@@ -4,7 +4,6 @@ import type { Interval } from '../music/interval.ts';
 import { applyInterval } from '../music/interval.ts';
 
 export type IntervalExercise = {
-  id: string;
   base: Pitch;
   interval: Interval;
   direction: 'up' | 'down';
@@ -33,22 +32,19 @@ const BASE_SPELLINGS: ReadonlyArray<{ letter: NoteLetter; accidental: Accidental
 
 const MIN_BASE_MIDI = 48; // C3
 const MAX_BASE_MIDI = 71; // B4
-const MAX_TARGET_MIDI = 84; // C6
-
-function randomId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+const MIN_TARGET_MIDI = 36; // C2 (for descending)
+const MAX_TARGET_MIDI = 84; // C6 (for ascending)
 
 export function generateIntervalExercise(options: {
   intervals: readonly Interval[];
-  direction?: 'up' | 'down';
+  direction?: 'up' | 'down' | 'both';
   rng?: () => number;
+  pickInterval?: (intervals: readonly Interval[]) => Interval;
 }): IntervalExercise {
   const rng = options.rng ?? Math.random;
-  const direction = options.direction ?? 'up';
+  const dirMode = options.direction ?? 'up';
+  const pickInterval =
+    options.pickInterval ?? ((xs) => xs[Math.floor(rng() * xs.length)]);
 
   for (let i = 0; i < 100; i++) {
     const spelling = BASE_SPELLINGS[Math.floor(rng() * BASE_SPELLINGS.length)];
@@ -57,21 +53,22 @@ export function generateIntervalExercise(options: {
     const baseMidi = pitchToMidi(base);
     if (baseMidi < MIN_BASE_MIDI || baseMidi > MAX_BASE_MIDI) continue;
 
-    const interval = options.intervals[Math.floor(rng() * options.intervals.length)];
+    const direction: 'up' | 'down' = dirMode === 'both' ? (rng() < 0.5 ? 'up' : 'down') : dirMode;
+    const interval = pickInterval(options.intervals);
     const target = applyInterval(base, interval, direction);
     const targetMidi = pitchToMidi(target);
-    if (targetMidi < MIN_BASE_MIDI || targetMidi > MAX_TARGET_MIDI) continue;
+    if (targetMidi < MIN_TARGET_MIDI || targetMidi > MAX_TARGET_MIDI) continue;
 
-    return { id: randomId(), base, interval, direction, target };
+    return { base, interval, direction, target };
   }
 
+  const fallbackDirection: 'up' | 'down' = dirMode === 'down' ? 'down' : 'up';
   const fallbackBase: Pitch = { letter: 'C', accidental: 'n', octave: 4 };
   return {
-    id: randomId(),
     base: fallbackBase,
     interval: options.intervals[0],
-    direction,
-    target: applyInterval(fallbackBase, options.intervals[0], direction),
+    direction: fallbackDirection,
+    target: applyInterval(fallbackBase, options.intervals[0], fallbackDirection),
   };
 }
 

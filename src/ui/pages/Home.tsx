@@ -2,6 +2,8 @@ import { useSessionStore } from '../../session/store.ts';
 
 export function Home() {
   const startSession = useSessionStore((s) => s.startSession);
+  const viewStats = useSessionStore((s) => s.viewStats);
+  const viewSettings = useSessionStore((s) => s.viewSettings);
   const sessionLength = useSessionStore((s) => s.config.sessionLength);
 
   return (
@@ -18,6 +20,22 @@ export function Home() {
       >
         Start session
       </button>
+      <div className="flex gap-2 mt-1">
+        <button
+          type="button"
+          onClick={viewStats}
+          className="rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-medium px-5 py-2"
+        >
+          View stats
+        </button>
+        <button
+          type="button"
+          onClick={viewSettings}
+          className="rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-medium px-5 py-2"
+        >
+          Settings
+        </button>
+      </div>
     </div>
   );
 }
