@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Interval } from '../music/interval.ts';
 import type { StoredAttempt } from './storage.ts';
+import { chordItems } from './generator.ts';
+import { diatonicTriad } from '../music/chord.ts';
 import { intervalKey } from './stats.ts';
-import { intervalWeights, pickWeightedInterval } from './weighting.ts';
+import { chordItemWeights, intervalWeights, pickWeightedInterval } from './weighting.ts';
 
 const M3: Interval = { quality: 'M', number: 3 };
 const P5: Interval = { quality: 'P', number: 5 };
@@ -10,6 +12,7 @@ const M7: Interval = { quality: 'M', number: 7 };
 
 function attempt(iv: Interval, correct: boolean, timestamp: number): StoredAttempt {
   return {
+    kind: 'interval',
     base: { letter: 'C', accidental: 'n', octave: 4 },
     interval: iv,
     direction: 'up',
@@ -85,5 +88,39 @@ describe('pickWeightedInterval', () => {
     const weights = new Map<string, number>();
     const picked = pickWeightedInterval([M7], weights);
     expect(picked).toEqual(M7);
+  });
+});
+
+describe('chordItemWeights', () => {
+  const C = { letter: 'C', accidental: 'n' } as const;
+  const F = { letter: 'F', accidental: 'n' } as const;
+  const items = chordItems([C, F], [1, 4]);
+
+  function chordAttempt(tonic: typeof C | typeof F, degree: 1 | 4, correct: boolean): StoredAttempt {
+    return {
+      kind: 'chord',
+      tonic,
+      degree,
+      chord: diatonicTriad(tonic, degree),
+      playedMidi: [],
+      correct,
+      timestamp: 1,
+    };
+  }
+
+  it('weights each (key, degree) by its own history', () => {
+    const w = chordItemWeights(items, [
+      chordAttempt(C, 1, true),
+      chordAttempt(F, 4, false),
+    ]);
+    expect(w.get('C|1')).toBe(0.15);
+    expect(w.get('F|4')).toBe(1);
+    expect(w.get('C|4')).toBe(1); // unseen
+  });
+
+  it('keeps interval and chord histories separate', () => {
+    const mixed = [chordAttempt(C, 1, true), attempt(M3, true, 1)];
+    expect(intervalWeights([M3], mixed).get('M3')).toBe(0.15);
+    expect(chordItemWeights(items, [attempt(M3, true, 1)]).get('C|1')).toBe(1);
   });
 });

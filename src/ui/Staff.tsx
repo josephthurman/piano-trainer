@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   Accidental,
   Formatter,
+  GhostNote,
   Renderer,
   Stave,
   StaveConnector,
@@ -39,10 +40,7 @@ function pitchToVexKey(p: Pitch): string {
   return `${letter}${acc}/${p.octave}`;
 }
 
-function clefForPosition(position: StaffPosition): 'treble' | 'bass' {
-  const minMidi = Math.min(...position.map((sp) => pitchToMidi(sp.pitch)));
-  return minMidi >= 60 ? 'treble' : 'bass';
-}
+const MIDDLE_C = 60;
 
 function makeChord(position: StaffPosition, clef: 'treble' | 'bass'): StaveNote {
   const sorted = [...position].sort((a, b) => pitchToMidi(a.pitch) - pitchToMidi(b.pitch));
@@ -85,37 +83,31 @@ export function Staff({ positions, width = 440, height = 220 }: Props) {
     new StaveConnector(treble, bass).setType('singleLeft').setContext(ctx).draw();
     new StaveConnector(treble, bass).setType('singleRight').setContext(ctx).draw();
 
-    const trebleChords: StaveNote[] = [];
-    const bassChords: StaveNote[] = [];
+    // Each position is one column. Notes from middle C up go on the treble staff,
+    // the rest on the bass staff; a staff with nothing in a column gets an invisible
+    // ghost note so both voices have the same number of beats and columns line up.
+    const trebleNotes: (StaveNote | GhostNote)[] = [];
+    const bassNotes: (StaveNote | GhostNote)[] = [];
     for (const pos of positions) {
       if (pos.length === 0) continue;
-      const clef = clefForPosition(pos);
-      const chord = makeChord(pos, clef);
-      if (clef === 'treble') trebleChords.push(chord);
-      else bassChords.push(chord);
+      const upper = pos.filter((sp) => pitchToMidi(sp.pitch) >= MIDDLE_C);
+      const lower = pos.filter((sp) => pitchToMidi(sp.pitch) < MIDDLE_C);
+      trebleNotes.push(upper.length > 0 ? makeChord(upper, 'treble') : new GhostNote({ duration: 'w' }));
+      bassNotes.push(lower.length > 0 ? makeChord(lower, 'bass') : new GhostNote({ duration: 'w' }));
     }
 
-    let trebleVoice: Voice | null = null;
-    let bassVoice: Voice | null = null;
-    if (trebleChords.length > 0) {
-      trebleVoice = new Voice({ numBeats: trebleChords.length * 4, beatValue: 4 });
-      trebleVoice.addTickables(trebleChords);
-    }
-    if (bassChords.length > 0) {
-      bassVoice = new Voice({ numBeats: bassChords.length * 4, beatValue: 4 });
-      bassVoice.addTickables(bassChords);
-    }
+    if (trebleNotes.length > 0) {
+      const trebleVoice = new Voice({ numBeats: trebleNotes.length * 4, beatValue: 4 });
+      trebleVoice.addTickables(trebleNotes);
+      const bassVoice = new Voice({ numBeats: bassNotes.length * 4, beatValue: 4 });
+      bassVoice.addTickables(bassNotes);
 
-    const voices: Voice[] = [];
-    if (trebleVoice) voices.push(trebleVoice);
-    if (bassVoice) voices.push(bassVoice);
-
-    if (voices.length > 0) {
       const formatter = new Formatter();
-      voices.forEach((v) => formatter.joinVoices([v]));
-      formatter.format(voices, staveWidth - 80);
-      if (trebleVoice) trebleVoice.draw(ctx, treble);
-      if (bassVoice) bassVoice.draw(ctx, bass);
+      formatter.joinVoices([trebleVoice]);
+      formatter.joinVoices([bassVoice]);
+      formatter.format([trebleVoice, bassVoice], staveWidth - 80);
+      trebleVoice.draw(ctx, treble);
+      bassVoice.draw(ctx, bass);
     }
 
     return () => {

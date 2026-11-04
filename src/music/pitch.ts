@@ -7,6 +7,12 @@ export type Pitch = {
   octave: number;
 };
 
+/** A spelled note without an octave, e.g. B♭ — used for chord roots and keys. */
+export type PitchClass = {
+  letter: NoteLetter;
+  accidental: Accidental;
+};
+
 export const LETTERS: readonly NoteLetter[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 export const LETTER_SEMITONES: Record<NoteLetter, number> = {
@@ -27,6 +33,24 @@ export function pitch(letter: NoteLetter, accidental: Accidental, octave: number
 
 export function pitchToMidi(p: Pitch): number {
   return (p.octave + 1) * 12 + LETTER_SEMITONES[p.letter] + ACCIDENTAL_SEMITONES[p.accidental];
+}
+
+/** 0–11, C = 0. Enharmonic spellings (A♯ / B♭) share a number. */
+export function pitchClassOf(pc: PitchClass): number {
+  return (((LETTER_SEMITONES[pc.letter] + ACCIDENTAL_SEMITONES[pc.accidental]) % 12) + 12) % 12;
+}
+
+export function midiPitchClass(midi: number): number {
+  return ((midi % 12) + 12) % 12;
+}
+
+/** Spell a MIDI note with a specific letter/accidental, e.g. 58 as B♭3 rather than A♯3. */
+export function spellMidi(midi: number, spelling: PitchClass): Pitch {
+  const offset = midi - LETTER_SEMITONES[spelling.letter] - ACCIDENTAL_SEMITONES[spelling.accidental];
+  if (offset % 12 !== 0) {
+    throw new Error(`MIDI ${midi} cannot be spelled as ${spelling.letter}${spelling.accidental}`);
+  }
+  return { letter: spelling.letter, accidental: spelling.accidental, octave: offset / 12 - 1 };
 }
 
 const DEFAULT_SPELLINGS: ReadonlyArray<{ letter: NoteLetter; accidental: Accidental }> = [
@@ -59,9 +83,13 @@ const ACCIDENTAL_SYMBOL: Record<Accidental, string> = {
   '##': '\u{1D12A}',
 };
 
+export function pitchClassDisplayName(pc: PitchClass): string {
+  return `${pc.letter}${ACCIDENTAL_SYMBOL[pc.accidental]}`;
+}
+
 export function pitchDisplayName(p: Pitch, includeOctave = false): string {
-  const acc = ACCIDENTAL_SYMBOL[p.accidental];
-  return includeOctave ? `${p.letter}${acc}${p.octave}` : `${p.letter}${acc}`;
+  const name = pitchClassDisplayName(p);
+  return includeOctave ? `${name}${p.octave}` : name;
 }
 
 export function pitchEquals(a: Pitch, b: Pitch): boolean {

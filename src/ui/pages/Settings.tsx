@@ -1,36 +1,12 @@
 import { useSessionStore } from '../../session/store.ts';
-import type { DirectionMode, IntervalSet } from '../../session/settings.ts';
+import type { ChordSet, DirectionMode, IntervalSet } from '../../session/settings.ts';
+import { CHORD_SETS, DIRECTION_LABELS, INTERVAL_SET_LABELS } from '../../session/settings.ts';
+import { Segmented } from '../Segmented.tsx';
 
 const SESSION_LENGTHS = [5, 10, 15, 20, 25] as const;
 
-type SegmentProps<T extends string | number> = {
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (v: T) => void;
-};
-
-function Segmented<T extends string | number>({ value, options, onChange }: SegmentProps<T>) {
-  return (
-    <div className="inline-flex rounded-md bg-neutral-900 border border-neutral-800 p-1">
-      {options.map((opt) => {
-        const selected = opt.value === value;
-        return (
-          <button
-            key={String(opt.value)}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`px-3 py-1.5 text-sm rounded ${
-              selected
-                ? 'bg-amber-500 text-neutral-950 font-semibold'
-                : 'text-neutral-300 hover:text-neutral-100'
-            }`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+function optionsFrom<T extends string>(labels: Record<T, string>): { value: T; label: string }[] {
+  return (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
 }
 
 export function Settings() {
@@ -52,22 +28,19 @@ export function Settings() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-5">
-        <Row label="Session length" hint="Number of exercises per session">
-          <Segmented
-            value={config.sessionLength}
-            options={SESSION_LENGTHS.map((n) => ({ value: n, label: String(n) }))}
-            onChange={(v) => updateConfig({ sessionLength: v })}
-          />
-        </Row>
+      <Row label="Session length" hint="Number of exercises per session">
+        <Segmented
+          value={config.sessionLength}
+          options={SESSION_LENGTHS.map((n) => ({ value: n, label: String(n) }))}
+          onChange={(v) => updateConfig({ sessionLength: v })}
+        />
+      </Row>
 
+      <Section title="Intervals">
         <Row label="Interval set" hint="Which intervals can appear">
           <Segmented<IntervalSet>
             value={config.intervalSet}
-            options={[
-              { value: 'basic', label: 'Basic 7' },
-              { value: 'all', label: 'All simple' },
-            ]}
+            options={optionsFrom(INTERVAL_SET_LABELS)}
             onChange={(v) => updateConfig({ intervalSet: v })}
           />
         </Row>
@@ -75,15 +48,24 @@ export function Settings() {
         <Row label="Direction" hint="Ascending plays up, descending plays down from the base">
           <Segmented<DirectionMode>
             value={config.direction}
-            options={[
-              { value: 'up', label: 'Ascending' },
-              { value: 'down', label: 'Descending' },
-              { value: 'both', label: 'Both' },
-            ]}
+            options={optionsFrom(DIRECTION_LABELS)}
             onChange={(v) => updateConfig({ direction: v })}
           />
         </Row>
-      </div>
+      </Section>
+
+      <Section title="Chords">
+        <Row label="Chord set" hint="Which keys and chords can appear">
+          <Segmented<ChordSet>
+            value={config.chordSet}
+            options={(Object.keys(CHORD_SETS) as ChordSet[]).map((id) => ({
+              value: id,
+              label: CHORD_SETS[id].label,
+            }))}
+            onChange={(v) => updateConfig({ chordSet: v })}
+          />
+        </Row>
+      </Section>
 
       <div className="border-t border-neutral-800 pt-5 flex flex-col gap-2">
         <div className="text-sm text-neutral-500">Data</div>
@@ -121,5 +103,14 @@ function Row({
       </div>
       {children}
     </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-neutral-800 pt-5 flex flex-col gap-5">
+      <h3 className="text-xs uppercase tracking-wider text-neutral-500">{title}</h3>
+      {children}
+    </section>
   );
 }

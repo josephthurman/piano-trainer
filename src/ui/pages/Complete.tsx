@@ -5,6 +5,7 @@ export function Complete() {
   const totalCount = useSessionStore((s) => s.config.sessionLength);
   const reset = useSessionStore((s) => s.reset);
   const startSession = useSessionStore((s) => s.startSession);
+  const lesson = useSessionStore((s) => s.lesson);
   const percent = Math.round((correctCount / totalCount) * 100);
 
   return (
@@ -18,7 +19,7 @@ export function Complete() {
       <div className="flex gap-3 mt-4">
         <button
           type="button"
-          onClick={startSession}
+          onClick={() => startSession(lesson)}
           className="rounded-md bg-amber-500 hover:bg-amber-400 text-neutral-950 font-semibold px-6 py-3"
         >
           Start another

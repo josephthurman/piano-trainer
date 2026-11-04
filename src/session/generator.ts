@@ -1,9 +1,12 @@
-import type { Accidental, NoteLetter, Pitch } from '../music/pitch.ts';
+import type { Accidental, NoteLetter, Pitch, PitchClass } from '../music/pitch.ts';
 import { pitchToMidi } from '../music/pitch.ts';
 import type { Interval } from '../music/interval.ts';
 import { applyInterval } from '../music/interval.ts';
+import type { Chord, ScaleDegree } from '../music/chord.ts';
+import { chordEquals, diatonicTriad } from '../music/chord.ts';
 
 export type IntervalExercise = {
+  kind: 'interval';
   base: Pitch;
   interval: Interval;
   direction: 'up' | 'down';
@@ -59,12 +62,13 @@ export function generateIntervalExercise(options: {
     const targetMidi = pitchToMidi(target);
     if (targetMidi < MIN_TARGET_MIDI || targetMidi > MAX_TARGET_MIDI) continue;
 
-    return { base, interval, direction, target };
+    return { kind: 'interval', base, interval, direction, target };
   }
 
   const fallbackDirection: 'up' | 'down' = dirMode === 'down' ? 'down' : 'up';
   const fallbackBase: Pitch = { letter: 'C', accidental: 'n', octave: 4 };
   return {
+    kind: 'interval',
     base: fallbackBase,
     interval: options.intervals[0],
     direction: fallbackDirection,
@@ -77,4 +81,56 @@ export function generateExercises(
   options: Parameters<typeof generateIntervalExercise>[0],
 ): IntervalExercise[] {
   return Array.from({ length: count }, () => generateIntervalExercise(options));
+}
+
+/** A chord to play, framed by its function in a major key (e.g. IV in F major = B♭ major). */
+export type ChordExercise = {
+  kind: 'chord';
+  tonic: PitchClass;
+  degree: ScaleDegree;
+  chord: Chord;
+};
+
+export type Exercise = IntervalExercise | ChordExercise;
+
+export type ChordItem = {
+  tonic: PitchClass;
+  degree: ScaleDegree;
+};
+
+/** Every (key, degree) combination, e.g. 3 keys × [I, IV, V] = 9 items. */
+export function chordItems(
+  tonics: readonly PitchClass[],
+  degrees: readonly ScaleDegree[],
+): ChordItem[] {
+  return tonics.flatMap((tonic) => degrees.map((degree) => ({ tonic, degree })));
+}
+
+function toChordExercise(item: ChordItem): ChordExercise {
+  return { kind: 'chord', ...item, chord: diatonicTriad(item.tonic, item.degree) };
+}
+
+export function generateChordExercises(
+  count: number,
+  options: {
+    items: readonly ChordItem[];
+    rng?: () => number;
+    pickItem?: (items: readonly ChordItem[]) => ChordItem;
+  },
+): ChordExercise[] {
+  const rng = options.rng ?? Math.random;
+  const pickItem = options.pickItem ?? ((xs) => xs[Math.floor(rng() * xs.length)]);
+
+  const exercises: ChordExercise[] = [];
+  for (let i = 0; i < count; i++) {
+    const previous = exercises[exercises.length - 1];
+    let next = toChordExercise(pickItem(options.items));
+    // The same chord shows up in several keys (C major is I of C, IV of G, V of F),
+    // so re-draw a few times to avoid asking for the same chord back to back.
+    for (let tries = 0; previous && chordEquals(next.chord, previous.chord) && tries < 10; tries++) {
+      next = toChordExercise(pickItem(options.items));
+    }
+    exercises.push(next);
+  }
+  return exercises;
 }
