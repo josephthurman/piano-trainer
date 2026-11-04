@@ -1,0 +1,43 @@
+name: CI
+
+# Runs on every pull request into main, and again on main after each merge.
+# Merges are blocked by a GitHub ruleset that requires the "test" job below to
+# pass — the ruleset lives in repo settings, not in this file.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A newer push to the same branch/PR cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # This job name is the status check the ruleset requires. Renaming it means
+    # updating the ruleset too, or merges will wait forever on a check that never runs.
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # keep in step with NODE_VERSION in netlify.toml
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:run
+
+      # Same command Netlify runs: tsc typecheck, then the Vite production build.
+      - name: Typecheck and build
+        run: npm run build
